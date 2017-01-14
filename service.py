@@ -11,8 +11,7 @@ __version__ = '1.0.0'
 import logging, re, sys, random
 import requests
 import gevent
-from gevent.queue import Queue
-from gevent.lock import BoundedSemaphore
+from gevent import monkey
 
 from setting import Config
 from storager import MysqlStorager
@@ -27,7 +26,6 @@ class Tasker(object):
             'Cache-Control': 'no-cache',
             }
         self.db = MysqlStorager()
-        self.queues = Queue(maxsize=50)
 
     def _fetchHtml(self, pageurl, proxies = Config.Proxies):
         try:
@@ -40,7 +38,7 @@ class Tasker(object):
             self.logger.error(e.message)
             return ''
 
-    def _saveproxies(self, proxies):
+    def _save_proxies(self, proxies):
         # proxies = [x for x in proxies if x not in locals()['_[1]']]
         proxies = set(proxies)
         # print proxies
@@ -78,7 +76,7 @@ class Tasker(object):
                     proxies.append(g[0] + ':' + g[2])
                     self.logger.debug(g[0] + ':' + g[2])
                 gevent.sleep(0.3)
-            self._saveproxies(proxies)
+            self._save_proxies(proxies)
 
     def freeproxylist(self):
         proxies = []
@@ -90,7 +88,7 @@ class Tasker(object):
         for g in searchs:
             proxies.append(g[0] + ":" + g[1])
             self.logger.debug(g[0] + ':' + g[1])
-        self._saveproxies(proxies)
+        self._save_proxies(proxies)
 
     def _validate_proxy(self, ip , port):
         url = 'http://gfw2.52yyh.com/hi.php'
@@ -138,6 +136,7 @@ if __name__ == '__main__':
     if func is None:
         print USAGE
     else:
+        monkey.patch_all()
         thread = gevent.spawn(func)
         thread.start()
         thread.join()
