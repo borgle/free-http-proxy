@@ -1,14 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>anno & elite proxy</title>
-</head>
-<body>
-<pre>
 {% for x in proxies -%}
 {{ x['ip'] }}:{{ x['port'] }}
-{%- endfor %}
-</pre>
-</body>
-</html>
+{% endfor -%}

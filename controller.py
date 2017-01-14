@@ -28,7 +28,7 @@ def home():
     for row in rows:
         p = dict()
         p['ip'] = row[0]
-        p['port'] = row[0]
+        p['port'] = row[1]
         proxies.append(p)
 
     j = dict()

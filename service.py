@@ -10,8 +10,10 @@ __version__ = '1.0.0'
 
 import logging, re, sys, random
 import requests
+import gevent
+from gevent.queue import Queue
+from gevent.lock import BoundedSemaphore
 
-from twisted.internet import reactor
 from setting import Config
 from storager import MysqlStorager
 
@@ -25,16 +27,17 @@ class Tasker(object):
             'Cache-Control': 'no-cache',
             }
         self.db = MysqlStorager()
+        self.queues = Queue(maxsize=50)
 
-    def _fetchHtml(self, pageurl):
+    def _fetchHtml(self, pageurl, proxies = Config.Proxies):
         try:
             self.logger.debug(pageurl)
             self.headers['User-Agent'] = random.choice(Config.UserAgent)
-            r = requests.get(pageurl, headers=self.headers, proxies=Config.Proxies)
+            r = requests.get(pageurl, headers=self.headers, proxies=proxies)
             html = r.content
             return html
         except Exception as e:
-            print e
+            self.logger.error(e.message)
             return ''
 
     def _saveproxies(self, proxies):
@@ -45,7 +48,7 @@ class Tasker(object):
         for p in proxies:
             s = p.split(':')
             sqlparams = {'ip': s[0], 'port': int(s[1])}
-            row = self.db.fetchone('select 1 from http where ip=%(ip)s, port=%(port)s', sqlparams)
+            row = self.db.fetchone('select 1 from http where ip=%(ip)s and port=%(port)s', sqlparams)
             if row is None:
                 sql = 'insert into http(ip, port) values(%(ip)s, %(port)s)'
                 self.db.execute(sql, sqlparams)
@@ -59,9 +62,9 @@ class Tasker(object):
         dic.append(('fr.html', 'fr'))
         # dic.append(('https.html', 'https'))
         dic.append(('elite.html', 'elite'))
-        proxies = []
         pattern = re.compile('''&lt;td&gt;(\d+(\.\d+){3})&lt;/td&gt;&lt;td&gt;(\d+)&lt;/td&gt;''')
         for mm in dic:
+            proxies = []
             u = 'http://www.freeproxylists.com/%s' % mm[0]
             html = self._fetchHtml(u)
             us, matches = [], re.findall('''<a href='%s/d([^']+)\.html'>''' % mm[1],html)
@@ -74,7 +77,8 @@ class Tasker(object):
                 for g in searchs:
                     proxies.append(g[0] + ':' + g[2])
                     self.logger.debug(g[0] + ':' + g[2])
-        self._saveproxies(proxies)
+                gevent.sleep(0.3)
+            self._saveproxies(proxies)
 
     def freeproxylist(self):
         proxies = []
@@ -88,13 +92,38 @@ class Tasker(object):
             self.logger.debug(g[0] + ':' + g[1])
         self._saveproxies(proxies)
 
+    def _validate_proxy(self, ip , port):
+        url = 'http://gfw2.52yyh.com/hi.php'
+        html = self._fetchHtml(url, {'http': 'http://{}:{}'.format(ip, port)})
+        if html.strip() == ip:
+            sql = 'update http set `lastcheck`=CURRENT_TIMESTAMP, `failtimes`=0 ' \
+                  'where `ip`=%(ip)s and `port`=%(port)s'
+        else:
+            sql = 'update http set `lastcheck`=CURRENT_TIMESTAMP, `failtimes`=`failtimes`+1 ' \
+                  'where `ip`=%(ip)s and `port`=%(port)s'
+        self.db.execute(sql, {'ip': ip, 'port': port})
+
+    def _query_proxy(self):
+        sql = 'select `ip`, `port` from http ' \
+              'where `lastcheck`<DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -120 SECOND) or ISNULL(`lastcheck`) ' \
+              'order by `lastcheck` limit 100'
+        rows = self.db.fetchall(sql)
+        jobs = [gevent.spawn(self._validate_proxy, row[0], int(row[1])) for row in rows]
+        return jobs
+
     def fetch(self):
-        self.freeproxylistsHttp()
-        self.freeproxylist()
-        reactor.callLater(60, self.fetch)
+        while True:
+            gevent.joinall([
+                gevent.spawn(self.freeproxylistsHttp),
+                gevent.spawn(self.freeproxylist),
+            ])
+            gevent.sleep(120)
 
     def check(self):
-        reactor.callLater(30, self.check)
+        while True:
+            jobs = self._query_proxy()
+            gevent.wait(jobs)
+            gevent.sleep(120)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - - %(asctime)s %(message)s', datefmt='[%b %d %H:%M:%S]')
@@ -109,5 +138,6 @@ if __name__ == '__main__':
     if func is None:
         print USAGE
     else:
-        reactor.callWhenRunning(func)
-        reactor.run()
+        thread = gevent.spawn(func)
+        thread.start()
+        thread.join()
