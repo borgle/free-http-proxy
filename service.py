@@ -27,7 +27,7 @@ class Tasker(object):
             }
         self.db = MysqlStorager()
 
-    def _fetchHtml(self, pageurl, data=None, proxies = Config.Proxies, referer=None):
+    def _fetchHtml(self, pageurl, data=None, proxies = Config.Proxies, referer=None, timeout=None):
         try:
             self.logger.debug(pageurl)
             self.headers['User-Agent'] = random.choice(Config.UserAgent)
@@ -36,9 +36,9 @@ class Tasker(object):
             else:
                 self.headers.pop('Referer')
             if data:
-                r = requests.post(pageurl, headers=self.headers, proxies=proxies)
+                r = requests.post(pageurl, headers=self.headers, proxies=proxies, timeout=timeout)
             else:
-                r = requests.get(pageurl, headers=self.headers, proxies=proxies)
+                r = requests.get(pageurl, headers=self.headers, proxies=proxies, timeout=timeout)
             html = r.content
             return html
         except Exception as e:
@@ -297,7 +297,8 @@ class Tasker(object):
 
     def _validate_proxy(self, ip , port):
         url = 'http://gfw2.52yyh.com/hi.php'
-        html = self._fetchHtml(url, {'http': 'http://{}:{}'.format(ip, port)})
+        proxies = {'http': 'http://{}:{}'.format(ip, port)}
+        html = self._fetchHtml(url, proxies=proxies, timeout=10)
         if html.strip() == ip:
             sql = 'update http set `lastcheck`=CURRENT_TIMESTAMP, `failtimes`=0 ' \
                   'where `ip`=%(ip)s and `port`=%(port)s'
