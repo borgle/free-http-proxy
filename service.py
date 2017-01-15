@@ -20,25 +20,23 @@ from storager import MysqlStorager
 class Tasker(object):
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.headers = {
-            'Accept-Language':'en-US,en;q=0.8,zh-CN;q=0.6,zh;q=0.4,zh-TW;q=0.2',
-            'Accept-Encoding':'gzip, deflate, sdch',
-            'Cache-Control': 'no-cache',
-            }
         self.db = MysqlStorager()
 
     def _fetchHtml(self, pageurl, data=None, proxies = Config.Proxies, referer=None, timeout=None):
         try:
             self.logger.debug(pageurl)
-            self.headers['User-Agent'] = random.choice(Config.UserAgent)
+            headers = {
+                'Accept-Language': 'en-US,en;q=0.8,zh-CN;q=0.6,zh;q=0.4,zh-TW;q=0.2',
+                'Accept-Encoding': 'gzip, deflate, sdch',
+                'Cache-Control': 'no-cache',
+            }
+            headers['User-Agent'] = random.choice(Config.UserAgent)
             if referer:
-                self.headers['Referer'] = referer
-            else:
-                self.headers.pop('Referer')
+                headers['Referer'] = referer
             if data:
-                r = requests.post(pageurl, headers=self.headers, proxies=proxies, timeout=timeout)
+                r = requests.post(pageurl, headers=headers, proxies=proxies, timeout=timeout)
             else:
-                r = requests.get(pageurl, headers=self.headers, proxies=proxies, timeout=timeout)
+                r = requests.get(pageurl, headers=headers, proxies=proxies, timeout=timeout)
             html = r.content
             return html
         except Exception as e:
@@ -298,7 +296,7 @@ class Tasker(object):
     def _validate_proxy(self, ip , port):
         url = 'http://gfw2.52yyh.com/hi.php'
         proxies = {'http': 'http://{}:{}'.format(ip, port)}
-        html = self._fetchHtml(url, proxies=proxies, timeout=10)
+        html = self._fetchHtml(url, proxies=proxies, timeout=20)
         if html.strip() == ip:
             sql = 'update http set `lastcheck`=CURRENT_TIMESTAMP, `failtimes`=0 ' \
                   'where `ip`=%(ip)s and `port`=%(port)s'
