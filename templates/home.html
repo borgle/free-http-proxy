@@ -1,5 +1,5 @@
 <pre>
 {% for x in proxies -%}
-{{ x['ip'] }}:{{ x['port'] }}
+{{ x['check'] }} {{ x['ip'] }}:{{ x['port'] }}
 {% endfor -%}
 </pre>

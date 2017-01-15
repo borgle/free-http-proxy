@@ -307,8 +307,9 @@ class Tasker(object):
 
     def _query_proxy(self):
         sql = 'select `ip`, `port` from http ' \
-              'where `lastcheck`<DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -120 SECOND) or ISNULL(`lastcheck`) ' \
-              'order by `lastcheck` limit 300'
+              'where `failtimes`>5 ' \
+              'or `lastcheck`<DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -120 SECOND) or ISNULL(`lastcheck`) ' \
+              'order by `lastcheck` limit 100'
         rows = self.db.fetchall(sql)
         jobs = [gevent.spawn(self._validate_proxy, row[0], int(row[1])) for row in rows]
         return jobs
@@ -333,7 +334,7 @@ class Tasker(object):
         while True:
             jobs = self._query_proxy()
             gevent.wait(jobs)
-            gevent.sleep(120)
+            gevent.sleep(3)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - - %(asctime)s %(message)s', datefmt='[%b %d %H:%M:%S]')

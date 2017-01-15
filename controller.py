@@ -23,12 +23,13 @@ def server_static(filepath):
 
 @route('/')
 def home():
-    rows = db.fetchall('select ip, port from http where failtimes<20 order by lastcheck desc limit 100')
+    rows = db.fetchall('select ip, port, lastcheck from http where failtimes<1 order by lastcheck desc limit 100')
     proxies = list()
     for row in rows:
         p = dict()
         p['ip'] = row[0]
         p['port'] = row[1]
+        p['check'] = row[2]
         proxies.append(p)
 
     j = dict()
