@@ -8,7 +8,7 @@
 
 __version__ = '1.0.0'
 
-import logging, re, sys, random
+import logging, re, sys, random, urllib2
 import requests
 import gevent
 from gevent import monkey
@@ -27,11 +27,18 @@ class Tasker(object):
             }
         self.db = MysqlStorager()
 
-    def _fetchHtml(self, pageurl, proxies = Config.Proxies):
+    def _fetchHtml(self, pageurl, data=None, proxies = Config.Proxies, referer=None):
         try:
             self.logger.debug(pageurl)
             self.headers['User-Agent'] = random.choice(Config.UserAgent)
-            r = requests.get(pageurl, headers=self.headers, proxies=proxies)
+            if referer:
+                self.headers['Referer'] = referer
+            else:
+                self.headers.pop('Referer')
+            if data:
+                r = requests.post(pageurl, headers=self.headers, proxies=proxies)
+            else:
+                r = requests.get(pageurl, headers=self.headers, proxies=proxies)
             html = r.content
             return html
         except Exception as e:
@@ -90,6 +97,204 @@ class Tasker(object):
             self.logger.debug(g[0] + ':' + g[1])
         self._save_proxies(proxies)
 
+    def cnproxyHttp(self):
+        '''获取cnproxy.com的http代理'''
+        proxies = []
+        pattern = re.compile(
+            '<td>(\d+\.\d+\.\d+\.\d+)<SCRIPT type=text/javascript>document\.write\(":"((\+[a-z]){2,5})\)</SCRIPT></td><td>HTTP</td>')
+        script = re.compile('''<SCRIPT type="text/javascript">\n(([a-z]="(\d)";)+)</SCRIPT>''')
+
+        us = [['http://www.cnproxy.com/proxyedu%s.html', 4]]
+        us.append(['http://www.cnproxy.com/proxy%s.html', 10])
+        for u in us:
+            for i in range(1, u[1] + 1):
+                url = u[0] % i
+                html = self._fetchHtml(url)
+                scripts = re.search(script, html)
+                if scripts:
+                    t = scripts.group(1).strip(';').replace('"', '')
+                    s = {}
+                    for d in t.split(';'):
+                        v = d.split('=')
+                        s[v[0]] = v[1]
+                    searchs = re.findall(pattern, html)
+                    for g in searchs:
+                        p = g[0] + ":"
+                        for d in g[1].strip('+').split('+'):
+                            p = p + s[d]
+                        proxies.append(p)
+                        self.logger.debug(p)
+        self._save_proxies(proxies)
+
+    def ipcnorgHttp(self):
+        '''获取proxy.ipcn.org的http代理'''
+        proxies = []
+        pattern = re.compile('''(\d+(\.\d+){3}:\d{2,4})''')
+        url = 'http://proxy.ipcn.org/proxylist2.html'
+        html = self._fetchHtml(url)
+        searchs = re.findall(pattern, html)
+        for g in searchs:
+            proxies.append(g[0])
+            self.logger.debug(g[0])
+        self._save_proxies(proxies)
+
+    def samairruHttp(self):
+        '''获取samair.ru的http代理'''
+        proxies = []
+        script = re.compile('''<script type="text/javascript">\n(([a-z]=(\d);)+)</script>''')
+        pattern = re.compile(
+            '<tr class="(elite|anon[^"]+)"><td>(\d+\.\d+\.\d+\.\d+).+?document\.write\(":"((\+[a-z]){2,5})\)</script></td>')
+        for i in range(1, 5):
+            u = 'http://www.samair.ru/proxy/proxy-%s.htm' % (('0' + str(i))[-2:])
+            html = self._fetchHtml(u)
+            scripts = re.search(script, html)
+            if scripts:
+                t = scripts.group(1).strip(';')
+                s = {}
+                for d in t.split(';'):
+                    v = d.split('=')
+                    s[v[0]] = v[1]
+                searchs = re.findall(pattern, html)
+                for g in searchs:
+                    p = g[1] + ":"
+                    for d in g[2].strip('+').split('+'):
+                        p = p + s[d]
+                    proxies.append(p)
+                    self.logger.debug(p)
+        self._save_proxies(proxies)
+
+    def nntimeHttp(self):
+        '''获取nntime.com的http代理'''
+        proxies = []
+        pattern = re.compile(
+            '''<td>(\d+\.\d+\.\d+\.\d+).+?document\.write\(":"((\+[a-z]){2,5})\)</script></td>\n<td>(high\-anon|anon)[^<]*?</td>''')
+        script = re.compile('''<script type="text/javascript">\n(([a-z]=(\d);)+)</script>''')
+        for i in range(1, 30):
+            u = 'http://nntime.com/proxy-list-%s.htm' % (('0' + str(i))[-2:])
+            html = self._fetchHtml(u)
+            scripts = re.search(script, html)
+            if scripts:
+                t = scripts.group(1).strip(';')
+                s = {}
+                for d in t.split(';'):
+                    v = d.split('=')
+                    s[v[0]] = v[1]
+                searchs = re.findall(pattern, html)
+                for g in searchs:
+                    p = g[0] + ":"
+                    for d in g[1].strip('+').split('+'):
+                        p = p + s[d]
+                    proxies.append(p)
+                    self.logger.debug(p)
+        self._save_proxies(proxies)
+
+    def xroxyHttp(self):
+        '''xroxy.com'''
+        proxies = []
+        pattern = re.compile('''<tr class='row[01]'>.*?</tr>''')
+        a = re.compile('>(\d+\.\d+\.\d+\.\d+)')
+        b = re.compile("'>(\d{2,5})</a>")
+        uid = 0
+        while True:
+            u = 'http://www.xroxy.com/proxylist.php?type=Anonymous&sort=reliability&desc=true&pnum=%s' % uid
+            html = self._fetchHtml(u)
+            html = re.sub('\r|\n', '', html)
+            rows = re.findall(pattern, html)
+            for row in rows:
+                m = re.findall(a, row)
+                n = re.findall(b, row)
+                proxies.append(m[0] + ":" + n[0])
+                self.logger.debug(m[0] + ":" + n[0])
+            uid = uid + 1
+            if "{}#table'>{}".format(uid, uid + 1) not in html:
+                break
+        self._save_proxies(proxies)
+
+    def proxzHttp(self):
+        '''proxz.com'''
+        proxies = []
+        scriptpattern = re.compile('''<script type='text/javascript'>eval\(unescape\('([^']+)'\)\);</script>''')
+        pattern = re.compile('<td>(\d+\.\d+\.\d+\.\d+)</td><td>(\d+)</td>')
+        for uid in range(10):
+            u = 'http://www.proxz.com/proxy_list_high_anonymous_%s.html' % uid
+            html = self._fetchHtml(u)
+            scripts = re.findall(scriptpattern, html)
+            if scripts:
+                html = scripts[0]
+                html = urllib2.unquote(html)
+                searchs = re.findall(pattern, html)
+                for g in searchs:
+                    proxies.append(g[0] + ":" + g[1])
+                    self.logger.debug(g[0] + ":" + g[1])
+        self._save_proxies(proxies)
+
+    def proxylistsHttp(self):
+        '''proxylists.net'''
+        dicpattern = '''<a href='/([a-zA-Z]+)_0\.html'>[^<]+</a><br/>'''
+        scriptpattern = re.compile(
+            '''<script type='text/javascript'>eval\(unescape\('([^']+)'\)\);</script><noscript>Please enable javascript</noscript></td><td>(\d+)</td><td>[Aa]nonymous</td>''')
+        pattern = re.compile('(\d+\.\d+\.\d+\.\d+)')
+        proxies = []
+        html = self._fetchHtml('http://www.proxylists.net/countries.html')
+        dics = re.findall(dicpattern, html)
+        for dic in dics:
+            bbb = set(proxies)
+            proxies = list(bbb)
+            uid = 0
+            while True:
+                u = 'http://www.proxylists.net/%s_%s_ext.html' % (dic, uid)
+                html = self._fetchHtml(u)
+                searchs = re.findall(scriptpattern, html)
+                for g in searchs:
+                    scripts = urllib2.unquote(g[0])
+                    ips = re.findall(pattern, scripts)
+                    proxies.append(ips[0] + ":" + g[1])
+                    self.logger.debug(ips[0] + ":" + g[1])
+                uid = uid + 1
+                if "<a href='{}_{}_ext.html'>{}</a>".format(dic, uid, uid+1) not in html:
+                    break
+        self._save_proxies(proxies)
+
+    def proxy_listen_deHttp(self):
+        '''www.proxy-listen.de'''
+        pattern = re.compile(
+            '<tr class="proxyList[^"]+"><td>(\d+\.\d+\.\d+\.\d+)</td><td>(\d+)</td><td>[^<]+</td><td>[12]</td>')
+        key_pattern = re.compile('''name="fefefsfesf4tzrhtzuh" value="([^"]+)"''')
+        pageurl = 'http://www.proxy-listen.de/Proxy/Proxyliste.html'
+        html = self._fetchHtml(pageurl)
+        keysearch = re.findall(key_pattern, html)
+        ggfhgfjcfgds = keysearch[0]
+        postdata = {
+            'filter_port': '',
+            'filter_http_gateway': '',
+            'filter_http_anon': '',
+            'filter_response_time_http': '',
+            'fefefsfesf4tzrhtzuh': ggfhgfjcfgds,
+            'filter_country': '',
+            'filter_timeouts1': '30',
+            'liststyle': 'info',
+            'proxies': '300',
+            'type': 'httphttps',
+            'submit': 'Show'
+        }
+
+        pageid = 1
+        proxies = []
+        while True:
+            html = self._fetchHtml(pageurl, data=postdata, referer=pageurl)
+            html = re.sub('\r|\n', '', html)
+            html = re.sub('<a[^>]+>', '', html)
+            html = re.sub('</a>', '', html)
+            print 'http://www.proxy-listen.de/Proxy/Proxyliste.html?page=%s' % pageid
+            searchs = re.findall(pattern, html)
+            for g in searchs:
+                proxies.append(g[0] + ':' + g[1])
+                self.logger.debug(g[0] + ':' + g[1])
+            pageid = pageid + 1
+            if '''<input onclick="nextPage();" id="next_page" type="submit" value="next page" name="next"/>''' not in html:
+                break
+        self._save_proxies(proxies)
+
     def _validate_proxy(self, ip , port):
         url = 'http://gfw2.52yyh.com/hi.php'
         html = self._fetchHtml(url, {'http': 'http://{}:{}'.format(ip, port)})
@@ -104,7 +309,7 @@ class Tasker(object):
     def _query_proxy(self):
         sql = 'select `ip`, `port` from http ' \
               'where `lastcheck`<DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -120 SECOND) or ISNULL(`lastcheck`) ' \
-              'order by `lastcheck` limit 100'
+              'order by `lastcheck` limit 300'
         rows = self.db.fetchall(sql)
         jobs = [gevent.spawn(self._validate_proxy, row[0], int(row[1])) for row in rows]
         return jobs
@@ -114,8 +319,16 @@ class Tasker(object):
             gevent.joinall([
                 gevent.spawn(self.freeproxylistsHttp),
                 gevent.spawn(self.freeproxylist),
+                gevent.spawn(self.cnproxyHttp),
+                gevent.spawn(self.ipcnorgHttp),
+                gevent.spawn(self.samairruHttp),
+                gevent.spawn(self.nntimeHttp),
+                gevent.spawn(self.xroxyHttp),
+                gevent.spawn(self.proxzHttp),
+                gevent.spawn(self.proxylistsHttp),
+                gevent.spawn(self.proxy_listen_deHttp),
             ])
-            gevent.sleep(120)
+            gevent.sleep(360)
 
     def check(self):
         while True:
