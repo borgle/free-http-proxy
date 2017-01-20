@@ -8,7 +8,7 @@
 
 __version__ = '1.0.0'
 
-import logging, re, sys, random, urllib2
+import logging, re, sys, random, urllib2, base64
 import requests
 import gevent
 from gevent import monkey
@@ -283,7 +283,6 @@ class Tasker(object):
             html = re.sub('\r|\n', '', html)
             html = re.sub('<a[^>]+>', '', html)
             html = re.sub('</a>', '', html)
-            print 'http://www.proxy-listen.de/Proxy/Proxyliste.html?page=%s' % pageid
             searchs = re.findall(pattern, html)
             for g in searchs:
                 proxies.append(g[0] + ':' + g[1])
@@ -291,6 +290,20 @@ class Tasker(object):
             pageid = pageid + 1
             if '''<input onclick="nextPage();" id="next_page" type="submit" value="next page" name="next"/>''' not in html:
                 break
+        self._save_proxies(proxies)
+
+    def proxy_list_orgHttp(self):
+        url = 'https://proxy-list.org/english/search.php?search=anonymous-and-elite&country=any&type=anonymous-and-elite&port=any&ssl=any&p={}'
+        pattern = re.compile("Proxy\('([^']+)'\)")
+        proxies = []
+        for i in range(1, 4):
+            pageurl = url.format(i)
+            html = self._fetchHtml(pageurl)
+            searchs = re.findall(pattern, html)
+            for g in searchs:
+                p = base64.decodestring(g)
+                proxies.append(p)
+                self.logger.debug(p)
         self._save_proxies(proxies)
 
     def _validate_proxy(self, ip , port):
@@ -327,6 +340,7 @@ class Tasker(object):
                 gevent.spawn(self.proxzHttp),
                 gevent.spawn(self.proxylistsHttp),
                 gevent.spawn(self.proxy_listen_deHttp),
+                gevent.spawn(self.proxy_list_orgHttp),
             ])
             gevent.sleep(360)
 
