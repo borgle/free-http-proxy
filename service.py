@@ -22,7 +22,7 @@ class Tasker(object):
         self.logger = logging.getLogger(__name__)
         self.db = MysqlStorager()
 
-    def _fetchHtml(self, pageurl, data=None, proxies = Config.Proxies, referer=None, timeout=None):
+    def _fetchUrl(self, pageurl, *args, **kwargs):
         try:
             self.logger.debug(pageurl)
             headers = {
@@ -30,15 +30,45 @@ class Tasker(object):
                 'Accept-Encoding': 'gzip, deflate, sdch',
                 'Cache-Control': 'no-cache',
             }
-            headers['User-Agent'] = random.choice(Config.UserAgent)
-            if referer:
-                headers['Referer'] = referer
-            if data:
-                r = requests.post(pageurl, headers=headers, proxies=proxies, timeout=timeout)
+            if 'proxies' in kwargs:
+                proxies = kwargs['proxies']
             else:
-                r = requests.get(pageurl, headers=headers, proxies=proxies, timeout=timeout)
-            html = r.content
-            return html
+                proxies = Config.Proxies
+            if 'useragent' in kwargs:
+                headers['User-Agent'] = kwargs['useragent']
+            else:
+                headers['User-Agent'] = random.choice(Config.UserAgent)
+            if 'cookie' in kwargs:
+                headers['Cookie'] = kwargs['cookie']
+            if 'referer' in kwargs:
+                headers['Referer'] = kwargs['referer']
+            if 'timeout' in kwargs:
+                timeout = kwargs['timeout']
+            else:
+                timeout = None
+            if 'data' in kwargs:
+                data = kwargs['data']
+            else:
+                data = None
+
+            if 'dataType' in kwargs:
+                dataType = kwargs['datatype']
+            else:
+                dataType = 'html'
+
+            if dataType == 'json':
+                headers['X-Overlay-Request'] = 'true'
+                headers['X-Requested-With'] = 'XMLHttpRequest'
+                headers['Accept'] = 'application/json, text/javascript;q=0.9,*/*;q=0.8'
+
+            if data is None:
+                r = requests.get(pageurl, headers=headers, proxies=proxies, timeout=timeout, verify=False)
+            else:
+                r = requests.post(pageurl, data=data, headers=headers, proxies=proxies, timeout=timeout, verify=False)
+            if dataType == 'json':
+                return r.json
+            else:
+                return r.content
         except Exception as e:
             self.logger.error(e.message)
             return ''
@@ -69,13 +99,13 @@ class Tasker(object):
         for mm in dic:
             proxies = []
             u = 'http://www.freeproxylists.com/%s' % mm[0]
-            html = self._fetchHtml(u)
+            html = self._fetchUrl(u)
             us, matches = [], re.findall('''<a href='%s/d([^']+)\.html'>''' % mm[1],html)
             for g in matches:
                 us.append(g)
             for uid in us:
                 u = 'http://www.freeproxylists.com/load_%s_%s.html' % (mm[1],uid)
-                html = self._fetchHtml(u)
+                html = self._fetchUrl(u)
                 searchs = re.findall(pattern,html)
                 for g in searchs:
                     proxies.append(g[0] + ':' + g[2])
@@ -87,7 +117,7 @@ class Tasker(object):
         proxies = []
         pattern = re.compile('<tr><td>(\d+\.\d+\.\d+\.\d+)</td><td>(\d+)</td><td>[^<]+</td><td>[^<]+</td><td>((elite proxy)|(anonymous))</td><td>[^<]+</td><td>[^<]+</td><td>[^<]+</td></tr>')
         u = 'http://free-proxy-list.net/'
-        html = self._fetchHtml(u)
+        html = self._fetchUrl(u)
         #print html
         searchs = re.findall(pattern, html)
         for g in searchs:
@@ -107,7 +137,7 @@ class Tasker(object):
         for u in us:
             for i in range(1, u[1] + 1):
                 url = u[0] % i
-                html = self._fetchHtml(url)
+                html = self._fetchUrl(url)
                 scripts = re.search(script, html)
                 if scripts:
                     t = scripts.group(1).strip(';').replace('"', '')
@@ -129,7 +159,7 @@ class Tasker(object):
         proxies = []
         pattern = re.compile('''(\d+(\.\d+){3}:\d{2,4})''')
         url = 'http://proxy.ipcn.org/proxylist2.html'
-        html = self._fetchHtml(url)
+        html = self._fetchUrl(url)
         searchs = re.findall(pattern, html)
         for g in searchs:
             proxies.append(g[0])
@@ -144,7 +174,7 @@ class Tasker(object):
             '<tr class="(elite|anon[^"]+)"><td>(\d+\.\d+\.\d+\.\d+).+?document\.write\(":"((\+[a-z]){2,5})\)</script></td>')
         for i in range(1, 5):
             u = 'http://www.samair.ru/proxy/proxy-%s.htm' % (('0' + str(i))[-2:])
-            html = self._fetchHtml(u)
+            html = self._fetchUrl(u)
             scripts = re.search(script, html)
             if scripts:
                 t = scripts.group(1).strip(';')
@@ -169,7 +199,7 @@ class Tasker(object):
         script = re.compile('''<script type="text/javascript">\n(([a-z]=(\d);)+)</script>''')
         for i in range(1, 30):
             u = 'http://nntime.com/proxy-list-%s.htm' % (('0' + str(i))[-2:])
-            html = self._fetchHtml(u)
+            html = self._fetchUrl(u)
             scripts = re.search(script, html)
             if scripts:
                 t = scripts.group(1).strip(';')
@@ -195,7 +225,7 @@ class Tasker(object):
         uid = 0
         while True:
             u = 'http://www.xroxy.com/proxylist.php?type=Anonymous&sort=reliability&desc=true&pnum=%s' % uid
-            html = self._fetchHtml(u)
+            html = self._fetchUrl(u)
             html = re.sub('\r|\n', '', html)
             rows = re.findall(pattern, html)
             for row in rows:
@@ -215,7 +245,7 @@ class Tasker(object):
         pattern = re.compile('<td>(\d+\.\d+\.\d+\.\d+)</td><td>(\d+)</td>')
         for uid in range(10):
             u = 'http://www.proxz.com/proxy_list_high_anonymous_%s.html' % uid
-            html = self._fetchHtml(u)
+            html = self._fetchUrl(u)
             scripts = re.findall(scriptpattern, html)
             if scripts:
                 html = scripts[0]
@@ -233,7 +263,7 @@ class Tasker(object):
             '''<script type='text/javascript'>eval\(unescape\('([^']+)'\)\);</script><noscript>Please enable javascript</noscript></td><td>(\d+)</td><td>[Aa]nonymous</td>''')
         pattern = re.compile('(\d+\.\d+\.\d+\.\d+)')
         proxies = []
-        html = self._fetchHtml('http://www.proxylists.net/countries.html')
+        html = self._fetchUrl('http://www.proxylists.net/countries.html')
         dics = re.findall(dicpattern, html)
         for dic in dics:
             bbb = set(proxies)
@@ -241,7 +271,7 @@ class Tasker(object):
             uid = 0
             while True:
                 u = 'http://www.proxylists.net/%s_%s_ext.html' % (dic, uid)
-                html = self._fetchHtml(u)
+                html = self._fetchUrl(u)
                 searchs = re.findall(scriptpattern, html)
                 for g in searchs:
                     scripts = urllib2.unquote(g[0])
@@ -259,7 +289,7 @@ class Tasker(object):
             '<tr class="proxyList[^"]+"><td>(\d+\.\d+\.\d+\.\d+)</td><td>(\d+)</td><td>[^<]+</td><td>[12]</td>')
         key_pattern = re.compile('''name="fefefsfesf4tzrhtzuh" value="([^"]+)"''')
         pageurl = 'http://www.proxy-listen.de/Proxy/Proxyliste.html'
-        html = self._fetchHtml(pageurl)
+        html = self._fetchUrl(pageurl)
         keysearch = re.findall(key_pattern, html)
         ggfhgfjcfgds = keysearch[0]
         postdata = {
@@ -279,7 +309,7 @@ class Tasker(object):
         pageid = 1
         proxies = []
         while True:
-            html = self._fetchHtml(pageurl, data=postdata, referer=pageurl)
+            html = self._fetchUrl(pageurl, data=postdata, referer=pageurl)
             html = re.sub('\r|\n', '', html)
             html = re.sub('<a[^>]+>', '', html)
             html = re.sub('</a>', '', html)
@@ -298,7 +328,7 @@ class Tasker(object):
         proxies = []
         for i in range(1, 4):
             pageurl = url.format(i)
-            html = self._fetchHtml(pageurl)
+            html = self._fetchUrl(pageurl)
             searchs = re.findall(pattern, html)
             for g in searchs:
                 p = base64.decodestring(g)
@@ -306,10 +336,38 @@ class Tasker(object):
                 self.logger.debug(p)
         self._save_proxies(proxies)
 
+    def proxylist_hidemyass_com(self):
+        baseurl = 'http://proxylist.hidemyass.com'
+        data = {'ac': 'on', 'allPorts': 1, 'pr[]': '0,1', 'a[]': '1,2,3,4', 'pl': 'on', 'sp[]': '1,2,3',
+                'ct[]': '1,2,3', 's': 0, 'o': 0, 'pp': 3, 'sortBy': 'date'}
+        j = self._fetchUrl(baseurl, data=data, datatype='json')
+        html = j['table']
+        html = re.sub('\r|\n', '', html)
+        html = re.sub('<(div|span) style="display:none">[^<]+</\\1>', '', html)
+
+        proxies = []
+        s = re.findall('<tr[^>]+>(.*?)</tr>', html)
+        for tr in s:
+            css = re.findall('\.([\w\-]+)\{display:none\}', tr)
+            for f in css:
+                none = '<(div|span) class="{}">[^<]+</\\1>'.format(f)
+                tr = re.sub(none, '', tr)
+            tr = re.sub('<style[^>]*>[^<]+</style>', '', tr)
+            tr = re.sub('<(div|span)[^<]*>', '', tr)
+            tr = re.sub('</(div|span)>', '', tr)
+            tr = re.sub('\s+', '', tr)
+            tr = re.sub('>\s+<', '><', tr)
+            tr = re.sub('\s*>', '>', tr)
+
+            g = re.findall('<td>(\d+\.\d+\.\d+\.\d+)</td><td>(\d{2,5})</td>', tr)
+            proxies.append(g[0][0] + ':' + g[0][1])
+            self.logger.debug(g[0][0] + ':' + g[0][1])
+        self._save_proxies(proxies)
+
     def _validate_proxy(self, ip , port):
         url = 'http://gfw2.52yyh.com/hi.php'
         proxies = {'http': 'http://{}:{}'.format(ip, port)}
-        html = self._fetchHtml(url, proxies=proxies, timeout=20)
+        html = self._fetchUrl(url, proxies=proxies, timeout=20)
         if html.strip() == ip:
             sql = 'update http set `lastcheck`=CURRENT_TIMESTAMP, `failtimes`=0 ' \
                   'where `ip`=%(ip)s and `port`=%(port)s'
@@ -319,6 +377,8 @@ class Tasker(object):
         self.db.execute(sql, {'ip': ip, 'port': port})
 
     def _query_proxy(self):
+        sql = 'delete from http where failtimes>80'
+        self.db.execute(sql)
         sql = 'select `ip`, `port` from http ' \
               'where `failtimes`>5 ' \
               'or `lastcheck`<DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -120 SECOND) or ISNULL(`lastcheck`) ' \
@@ -341,6 +401,7 @@ class Tasker(object):
                 gevent.spawn(self.proxylistsHttp),
                 gevent.spawn(self.proxy_listen_deHttp),
                 gevent.spawn(self.proxy_list_orgHttp),
+                gevent.spawn(self.proxylist_hidemyass_com),
             ])
             gevent.sleep(360)
 
