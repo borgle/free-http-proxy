@@ -368,7 +368,7 @@ class Tasker(object):
         url = 'http://gfw.52yyh.com/hi.php'
         proxies = {'http': 'http://{}:{}'.format(ip, port)}
         html = self._fetchUrl(url, proxies=proxies, timeout=20)
-        if html.strip() == ip:
+        if html.strip().startswith(ip):
             sql = 'update http set `lastcheck`=CURRENT_TIMESTAMP, `failtimes`=0 ' \
                   'where `ip`=%(ip)s and `port`=%(port)s'
         else:
