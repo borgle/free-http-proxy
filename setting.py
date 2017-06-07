@@ -18,8 +18,6 @@ class Config(object):
             'raise_on_warnings': True,
         }
 
-    MemcachedServer = ['127.0.0.1:11211']
-
     UserAgent = [
             'Mozilla/5.0 (Windows; U; Windows NT 5.2; zh-CN; rv:1.9.1.5) Gecko/20091102 Firefox/3.5.5',
             'Mozilla/4.0+(compatible;+MSIE+7.0;+Windows+NT+6.0;+.NET+CLR+3.0.04506;)',
@@ -39,9 +37,8 @@ class Config(object):
         ]
 
     SessionOptions = {
-            'session.type': 'ext:memcached',
-            'session.cookie_expires': 300,
-            'session.url': MemcachedServer[0],
+            'session.type': 'memory',
+            'session.cookie_expires': True,
             'session.key': 'auth_token',
             'session.httponly': True,
             'session.auto': True
