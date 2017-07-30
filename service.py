@@ -365,7 +365,7 @@ class Tasker(object):
         self._save_proxies(proxies)
 
     def _validate_proxy(self, ip , port):
-        url = 'http://gfw.52yyh.com/hi.php'
+        url = 'http://chk.gkeeps.com/hi.php'
         proxies = {'http': 'http://{}:{}'.format(ip, port)}
         html = self._fetchUrl(url, proxies=proxies, timeout=20)
         if html.strip().startswith(ip):
