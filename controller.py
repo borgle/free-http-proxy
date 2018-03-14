@@ -37,3 +37,9 @@ def home():
     return jinja2_template('home.html', j)
 
 
+@route('/chk.php')
+def chk():
+    # it was replaced by nginx
+    x_real_ip = request.environ.get('HTTP_X_REAL_IP')
+    x_forward_for = request.environ.get('HTTP_X_FORWARDED_FOR')
+    return '{}\n{}'.format(x_forward_for, x_real_ip)
