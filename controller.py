@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # coding:utf-8
 
-import urllib, random
-from bottle import get, post, route, redirect, static_file
-from bottle import request, response, jinja2_template
+from bottle import get, route, static_file
+from bottle import request, jinja2_template
 
 from setting import Config
 from storager import MysqlStorager
@@ -41,5 +40,23 @@ def home():
 def chk():
     # it was replaced by nginx
     x_real_ip = request.environ.get('HTTP_X_REAL_IP')
+    via = request.environ.get('HTTP_VIA')
     x_forward_for = request.environ.get('HTTP_X_FORWARDED_FOR')
-    return '{}\n{}'.format(x_forward_for, x_real_ip)
+    user_agent = request.environ.get('HTTP_USER_AGENT')
+    accept_language = request.environ.get('HTTP_ACCEPT_LANGUAGE')
+
+    result = {'remote_addr': x_real_ip, 'user_agent': user_agent, 'accept_language': accept_language}
+    if via:
+        result['via'] = via
+    if x_forward_for:
+        result['x_forward_for'] = x_forward_for
+
+    ip = ','.join([x for x in (via, x_forward_for) if x])
+    level = 'high anonymous'
+    if ip:
+        level = 'anonymous'
+        if ip != x_real_ip:
+            level = 'transparent'
+    result['level'] = level
+
+    return result

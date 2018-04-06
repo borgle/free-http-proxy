@@ -6,11 +6,17 @@
   check       :  run check module
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
-import logging, re, sys, random, urllib2, base64
-import requests
+import base64
+import logging
+import random
+import re
+import sys
+import urllib2
+
 import gevent
+import requests
 from gevent import monkey
 
 from setting import Config
@@ -51,7 +57,7 @@ class Tasker(object):
             else:
                 data = None
 
-            if 'dataType' in kwargs:
+            if 'datatype' in kwargs:
                 dataType = kwargs['datatype']
             else:
                 dataType = 'html'
@@ -100,13 +106,13 @@ class Tasker(object):
             proxies = []
             u = 'http://www.freeproxylists.com/%s' % mm[0]
             html = self._fetchUrl(u)
-            us, matches = [], re.findall('''<a href='%s/d([^']+)\.html'>''' % mm[1],html)
+            us, matches = [], re.findall('''<a href='%s/d([^']+)\.html'>''' % mm[1], html)
             for g in matches:
                 us.append(g)
             for uid in us:
-                u = 'http://www.freeproxylists.com/load_%s_%s.html' % (mm[1],uid)
+                u = 'http://www.freeproxylists.com/load_%s_%s.html' % (mm[1], uid)
                 html = self._fetchUrl(u)
-                searchs = re.findall(pattern,html)
+                searchs = re.findall(pattern, html)
                 for g in searchs:
                     proxies.append(g[0] + ':' + g[2])
                     self.logger.debug(g[0] + ':' + g[2])
@@ -115,10 +121,11 @@ class Tasker(object):
 
     def freeproxylist(self):
         proxies = []
-        pattern = re.compile('<tr><td>(\d+\.\d+\.\d+\.\d+)</td><td>(\d+)</td><td>[^<]+</td><td>[^<]+</td><td>((elite proxy)|(anonymous))</td><td>[^<]+</td><td>[^<]+</td><td>[^<]+</td></tr>')
+        pattern = re.compile(
+            '<tr><td>(\d+\.\d+\.\d+\.\d+)</td><td>(\d+)</td><td>[^<]+</td><td>[^<]+</td><td>((elite proxy)|(anonymous))</td><td>[^<]+</td><td>[^<]+</td><td>[^<]+</td></tr>')
         u = 'http://free-proxy-list.net/'
         html = self._fetchUrl(u)
-        #print html
+        # print html
         searchs = re.findall(pattern, html)
         for g in searchs:
             proxies.append(g[0] + ":" + g[1])
@@ -279,7 +286,7 @@ class Tasker(object):
                     proxies.append(ips[0] + ":" + g[1])
                     self.logger.debug(ips[0] + ":" + g[1])
                 uid = uid + 1
-                if "<a href='{}_{}_ext.html'>{}</a>".format(dic, uid, uid+1) not in html:
+                if "<a href='{}_{}_ext.html'>{}</a>".format(dic, uid, uid + 1) not in html:
                     break
         self._save_proxies(proxies)
 
@@ -364,11 +371,11 @@ class Tasker(object):
             self.logger.debug(g[0][0] + ':' + g[0][1])
         self._save_proxies(proxies)
 
-    def _validate_proxy(self, ip , port):
+    def _validate_proxy(self, ip, port):
         url = 'http://p.gkeeps.com/chk.php'
         proxies = {'http': 'http://{}:{}'.format(ip, port)}
-        html = self._fetchUrl(url, proxies=proxies, timeout=20)
-        if html.strip().startswith(ip):
+        j = self._fetchUrl(url, proxies=proxies, timeout=20, datatype='json')
+        if isinstance(j, dict) and j['level'] != 'transparent':
             sql = 'update http set `lastcheck`=CURRENT_TIMESTAMP, `failtimes`=0 ' \
                   'where `ip`=%(ip)s and `port`=%(port)s'
         else:
