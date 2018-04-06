@@ -3,9 +3,10 @@
 
 __version__ = '1.0.0'
 
-import logging
+import logging.config
 import multiprocessing
 import sys
+import yaml
 
 import bottle
 from beaker.middleware import SessionMiddleware
@@ -16,8 +17,11 @@ from controller import *
 def number_of_workers():
     return (multiprocessing.cpu_count() * 2) + 1
 
+
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - - %(asctime)s %(message)s', datefmt='[%b %d %H:%M:%S]')
+    with open('logging.yaml', 'rt') as f:
+        yml = yaml.load(f.read())
+        logging.config.dictConfig(yml)
     if len(sys.argv) < 2:
         host, port = '127.0.0.1', 8082
     else:

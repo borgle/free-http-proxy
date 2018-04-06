@@ -9,7 +9,7 @@
 __version__ = '1.1.0'
 
 import base64
-import logging
+import logging.config
 import random
 import re
 import sys
@@ -17,6 +17,7 @@ import urllib2
 
 import gevent
 import requests
+import yaml
 from gevent import monkey
 
 from setting import Config
@@ -418,8 +419,11 @@ class Tasker(object):
             gevent.wait(jobs)
             gevent.sleep(3)
 
+
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - - %(asctime)s %(message)s', datefmt='[%b %d %H:%M:%S]')
+    with open('logging.yaml', 'rt') as f:
+        yml = yaml.load(f.read())
+        logging.config.dictConfig(yml)
     USAGE = __doc__.replace('%prog', sys.argv[0])
     if len(sys.argv) < 2:
         taskname = 'fetch'
