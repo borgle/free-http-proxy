@@ -3,3 +3,4 @@ requests
 bottle
 beaker
 PyYAML
+jinja2
